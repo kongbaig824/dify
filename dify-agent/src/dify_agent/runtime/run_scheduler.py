@@ -31,6 +31,7 @@ from dify_agent.runtime.event_coalescer import (
 from dify_agent.runtime.event_sink import RunEventSink, RunFinalizationResult, emit_run_failed
 from dify_agent.runtime.observability import AgentObservability
 from dify_agent.runtime.runner import DEFAULT_AGENT_RUN_TIMEOUT_SECONDS, AgentRunRunner
+from dify_agent.storage.long_term_memory import RedisLongTermMemory
 from dify_agent.server.schemas import RunRecord
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,7 @@ class RunScheduler:
     plugin_daemon_http_client: httpx.AsyncClient
     dify_api_http_client: httpx.AsyncClient
     agent_observability: AgentObservability | None
+    long_term_memory: RedisLongTermMemory | None
     _lifecycle_lock: asyncio.Lock
 
     def __init__(
@@ -137,6 +139,7 @@ class RunScheduler:
         layer_providers: tuple[LayerProviderInput, ...] | None = None,
         runner_factory: RunRunnerFactory | None = None,
         agent_observability: AgentObservability | None = None,
+        long_term_memory: RedisLongTermMemory | None = None,
     ) -> None:
         self.store = store
         self.shutdown_grace_seconds = shutdown_grace_seconds
@@ -151,6 +154,7 @@ class RunScheduler:
         self.layer_providers = layer_providers if layer_providers is not None else create_default_layer_providers()
         self.runner_factory = runner_factory
         self.agent_observability = agent_observability
+        self.long_term_memory = long_term_memory
         self._lifecycle_lock = asyncio.Lock()
 
     async def create_run(self, request: CreateRunRequest) -> RunRecord:
@@ -325,6 +329,7 @@ class RunScheduler:
             stream_text_delta_flush_interval_seconds=self.stream_text_delta_flush_interval_seconds,
             stream_text_delta_max_chars=self.stream_text_delta_max_chars,
             agent_observability=self.agent_observability,
+            long_term_memory=self.long_term_memory,
         )
 
     def _discard_active_run(self, run_id: str) -> None:
