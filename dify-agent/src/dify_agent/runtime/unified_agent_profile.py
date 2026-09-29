@@ -41,6 +41,19 @@ class UnifiedAgentProfile(BaseModel):
             "Use only capabilities enabled for this run.\n"
             f"Enabled capabilities: {capability_text}.\n"
             f"Maximum tool steps: {self.max_tool_steps}.\n"
+            "Plan before acting: identify which enabled capabilities are needed, "
+            "use the smallest useful sequence of tool calls, and synthesize the "
+            "results only after the required calls finish.\n"
+            "Do not call the same tool repeatedly when the available result already "
+            "answers the question.\n"
+            "When a capability is unavailable, say so instead of pretending it was used."
+        )
+
+        return (
+            f"You are {self.name}.\n"
+            "Use only capabilities enabled for this run.\n"
+            f"Enabled capabilities: {capability_text}.\n"
+            f"Maximum tool steps: {self.max_tool_steps}.\n"
             "When a capability is unavailable, say so instead of pretending it was used."
         )
 
