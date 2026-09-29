@@ -90,6 +90,7 @@ from dify_agent.runtime.history import (
 )
 from dify_agent.runtime.layer_exit_signals import apply_layer_exit_signals, validate_layer_exit_signals
 from dify_agent.runtime.output_type import resolve_run_output_contract, validate_output_layer_composition
+from dify_agent.runtime.unified_agent_profile import AgentCapability, UnifiedAgentProfile
 from dify_agent.runtime.user_prompt_validation import EMPTY_USER_PROMPTS_ERROR, has_non_blank_user_prompt
 
 
@@ -381,6 +382,8 @@ class AgentRunRunner:
                         plugin_daemon_http_client=self.plugin_daemon_http_client,
                         dify_api_http_client=self.dify_api_http_client,
                     )
+                    capabilities = _infer_unified_agent_capabilities(run, tools)
+                    profile = UnifiedAgentProfile(capabilities=capabilities)
                 except (KeyError, TypeError, RuntimeError, ValueError) as exc:
                     raise AgentRunValidationError(str(exc)) from exc
 
@@ -413,7 +416,7 @@ class AgentRunRunner:
                                     message_history=message_history,
                                     deferred_tool_results=deferred_tool_results,
                                     event_stream_handler=handle_events,
-                                    instructions=run.prompts or None,
+                                    instructions=_merge_agent_instructions(run.prompts, profile.instructions()),
                                     capabilities=[compaction] if compaction is not None else None,
                                     usage_limits=UsageLimits(request_limit=_MAX_AGENT_STEPS_PER_RUN),
                                 )
@@ -474,6 +477,38 @@ class AgentRunRunner:
             session_snapshot=run.session_snapshot,
             usage=usage,
         )
+
+
+def _infer_unified_agent_capabilities(
+    run: Any,
+    tools: list[PydanticAITool[object]],
+) -> frozenset[AgentCapability]:
+    """Infer enabled capabilities from already-resolved runtime layers and tools."""
+    capabilities: set[AgentCapability] = set()
+
+    if get_history_layer(run) is not None:
+        capabilities.add(AgentCapability.MEMORY)
+
+    if any(isinstance(slot.layer, DifyKnowledgeBaseLayer) for slot in run.slots.values()):
+        capabilities.add(AgentCapability.KNOWLEDGE)
+
+    if tools:
+        capabilities.add(AgentCapability.TOOL_EXECUTION)
+
+    if any(
+        any(keyword in tool.name.lower() for keyword in ("web", "search", "browse"))
+        for tool in tools
+    ):
+        capabilities.add(AgentCapability.WEB_SEARCH)
+
+    return frozenset(capabilities)
+
+
+def _merge_agent_instructions(run_prompts: Sequence[str] | None, profile_instructions: str) -> str:
+    """Combine caller-provided prompts with the runtime capability contract."""
+    if not run_prompts:
+        return profile_instructions
+    return "\n\n".join([*run_prompts, profile_instructions])
 
 
 def _serialize_agent_output(output: object) -> JsonValue:
