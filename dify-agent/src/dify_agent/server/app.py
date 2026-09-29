@@ -43,6 +43,7 @@ from dify_agent.server.binding_files import BindingFileService
 from dify_agent.server.home_snapshots import HomeSnapshotService
 from dify_agent.server.settings import ServerSettings
 from dify_agent.storage.redis_run_store import RedisRunStore
+from dify_agent.storage.long_term_memory import RedisLongTermMemory
 
 
 def create_app(settings: ServerSettings | None = None) -> FastAPI:
@@ -115,6 +116,7 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
             run_retention_seconds=resolved_settings.run_retention_seconds,
             run_event_stream_max_length=resolved_settings.run_event_stream_max_length,
         )
+        long_term_memory = RedisLongTermMemory(redis, prefix=resolved_settings.redis_prefix)
         scheduler = RunScheduler(
             store=store,
             plugin_daemon_http_client=plugin_daemon_http_client,
@@ -126,6 +128,7 @@ def create_app(settings: ServerSettings | None = None) -> FastAPI:
             stream_text_delta_max_chars=resolved_settings.stream_text_delta_max_chars,
             layer_providers=layer_providers,
             agent_observability=agent_observability,
+            long_term_memory=long_term_memory,
         )
         state["store"] = store
         state["scheduler"] = scheduler
